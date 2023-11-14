@@ -17,7 +17,7 @@ Bash script to help build and run an offline installer in recovery.
 
     ◦ i.e. If you want to download Ventura, make sure you get Ventura from both `gibMacOS` and `macrecovery.py`
 
-2. Format your USB with 2 partitions:
+3. Format your USB with 2 partitions:
    
     ◦ A FAT32 partition of ~750MB to 1GB (enough to accommodate the EFI and com.apple.recovery.boot folders)
 
@@ -60,3 +60,32 @@ Bash script to help build and run an offline installer in recovery.
 3. The script will then prompt asking for the target volume - this is the volume that you just created in Disk Utility.  The one where you intend to install macOS
 4. Then you'll be presented with a task list - and asked if you want to continue - type `y` and enter
 5. The script will build the full install app and launch it from the Terminal for you - continue the rest of the install as normal
+
+## Sonoma Notes
+
+It seems the Sonoma BaseSystem.dmg recovery environment does not allow mounting FAT32 or ExFAT volumes at all.  To work around this using UnPlugged requires a couple extra steps.
+
+You'll need to use an earlier BaseSystem.dmg|.chunklist downloaded via `macrecovery.py` in your com.apple.recovery.boot folder (Ventura works fine with FAT32 and ExFAT volumes).  You'll also need to download Sonoma's BaseSystem.dmg via `macrecovery.py` and place that alongside the files downloaded with `gibMacOS`.  The end result should look something like the following:
+
+```
+USB Drive
+|-> 800MB FAT32 Partition (named OPENCORE or similar)
+|   |-> EFI
+|   \-> com.apple.recovery.boot
+|       |-> BaseSystem.dmg (for Ventura)
+|       \-> BaseSystem.chunklist (for Ventura)
+\-> 15+GB ExFAT Partition (named UnPlugged or similar)
+    |-> InstallAssistant.pkg (for Sonoma)
+    |-> BaseSystem.dmg (for Sonoma)
+    \-> UnPlugged.command
+```
+
+In order for `UnPlugged.command` to be able to find the `Install macOS Sonoma.app`, you'll need to mount the BaseSystem.dmg for it using `hdiutil` from the terminal.  Assuming the above USB drive layout, and assuming the ExFAT volume is named `UnPlugged`, you can accomplish that with the following command in the terminal:
+
+```
+hdiutil attach -noverify /Volumes/UnPlugged/BaseSystem.dmg
+```
+
+Make sure you replace `/Volumes/UnPlugged/BaseSystem.dmg` with the path to your .dmg if you're using a different volume name or directory layout.  The `-noverify` argument just prevents verifying the .dmg's checksum in order to speed up mounting.  You can omit that if you want the .dmg verified.
+
+The rest of the process should be the same as with prior OS versions.
