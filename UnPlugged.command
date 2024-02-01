@@ -282,4 +282,4 @@ echo - Caffeinating and launching "$app_name"...
 echo
 echo ! Note:  It may take some time to start - be patient !
 echo
-caffeinate -i "$selected_disk"/"$app_name"/Contents/MacOS/Install* 2>/dev/null &
+caffeinate -d -i "$selected_disk"/"$app_name"/Contents/MacOS/Install* 2>/dev/null &
