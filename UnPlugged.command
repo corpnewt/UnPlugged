@@ -2,7 +2,7 @@
 
 # Get the curent directory
 args=( "$@" )
-dir="${0%/*}"
+dir="$(cd -- "$(dirname "$0")" >/dev/null 2>&1; pwd -P)"
 selected_disk=
 install_app=
 ia_required=("InstallAssistant.pkg")
