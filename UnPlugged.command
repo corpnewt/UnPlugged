@@ -81,14 +81,32 @@ function pickApp () {
     if [ "$app" == "q" ]; then
         exit 0
     fi
+    # Make sure it's a number, and within range
     if [ "$app" -eq "$app" ] 2>/dev/null; then
         if [  "$app" -le "$appCount" ] && [  "$app" -gt "0" ]; then
             app="${appArray[ (( $app-1 )) ]}"
             install_app="$app"
         fi
     fi
+    # Strip trailing slashes
+    stripSlash
     if [ "$install_app" == "" ]; then
         pickApp
+    fi
+}
+
+function stripSlash () {
+    if [ "$install_app" == "" ]; then
+        return
+    fi
+    # Attempt to remove a trailing slash - if any
+    install_app_check="${install_app%/}"
+    if [ "$install_app_check" == "$install_app" ]; then
+        return
+    else
+        # A change was made - save it, and try again
+        install_app="$install_app_check"
+        stripSlash
     fi
 }
 
@@ -188,11 +206,12 @@ clear 2>/dev/null
 echo Task Summary:
 echo
 app_name="${install_app##*/}"
-if [[ "$install_app" =~ ^"$selected_disk" ]]; then
+target_app="$selected_disk"/"$app_name"
+if [[ "$install_app" == "$target_app" ]]; then
     echo - Leave "$app_name" in place
 else
-    if [ -d "$selected_disk/$app_name" ]; then
-        echo - Delete existing "$selected_disk"/"$app_name"
+    if [ -d "$target_app" ]; then
+        echo - Delete existing "$target_app"
     fi
     echo - Copy "$app_name" to "$selected_disk"
 fi
@@ -213,26 +232,26 @@ echo
 clear 2>/dev/null
 echo Executing tasks...
 echo
-if [[ ! "$install_app" =~ ^"$selected_disk" ]]; then
-    if [ -d "$selected_disk/$app_name" ]; then
-        echo - Deleting existing "$selected_disk"/"$app_name"
-        rm -rf "$selected_disk/$app_name"
+if [[ ! "$install_app" == "$target_app" ]]; then
+    if [ -d "$target_app" ]; then
+        echo - Deleting existing "$target_app"
+        rm -rf "$target_app"
     fi
     echo - Copying "$app_name" to "$selected_disk"...
     cp -R "$install_app" "$selected_disk"
 fi
 echo - Creating "$app_name"/Contents/SharedSupport...
-mkdir -p "$selected_disk/$app_name/Contents/SharedSupport"
+mkdir -p "$target_app/Contents/SharedSupport"
 echo - Copying files to SharedSupport - may take some time...
 if [ "$install_type" == "ia" ]; then
     for f in "${ia_required[@]}"
     do
         if [ "$f" == "InstallAssistant.pkg" ]; then
             echo "--> $f -- SharedSupport.dmg"
-            cp "$dir/$f" "$selected_disk/$app_name/Contents/SharedSupport/SharedSupport.dmg"
+            cp "$dir/$f" "$target_app/Contents/SharedSupport/SharedSupport.dmg"
         else
             echo "--> $f"
-            cp "$dir/$f" "$selected_disk/$app_name/Contents/SharedSupport/$f"
+            cp "$dir/$f" "$target_app/Contents/SharedSupport/$f"
         fi
     done
 else
@@ -243,10 +262,10 @@ else
             continue
         elif [ "$f" == "InstallESDDmg.pkg" ]; then
             echo "--> $f -- InstallESD.dmg"
-            cp "$dir/$f" "$selected_disk/$app_name/Contents/SharedSupport/InstallESD.dmg"
+            cp "$dir/$f" "$target_app/Contents/SharedSupport/InstallESD.dmg"
         else
             echo "--> $f"
-            cp "$dir/$f" "$selected_disk/$app_name/Contents/SharedSupport/$f"
+            cp "$dir/$f" "$target_app/Contents/SharedSupport/$f"
         fi
     done
     # Now we need to read the InstallInfo.plist and echo the lines to
@@ -275,11 +294,11 @@ else
                 line="<string>com.apple.dmg.InstallESD</string>"
             fi
         fi
-        echo "$line" >> "$selected_disk/$app_name/Contents/SharedSupport/InstallInfo.plist"
+        echo "$line" >> "$target_app/Contents/SharedSupport/InstallInfo.plist"
     done < "$dir/InstallInfo.plist"
 fi
 echo - Caffeinating and launching "$app_name"...
 echo
 echo ! Note:  It may take some time to start - be patient !
 echo
-caffeinate -d -i "$selected_disk"/"$app_name"/Contents/MacOS/Install* 2>/dev/null &
+caffeinate -d -i "$target_app"/Contents/MacOS/Install* 2>/dev/null &
