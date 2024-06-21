@@ -175,6 +175,29 @@ function pickDir () {
     fi
 }
 
+function copyTo () {
+    # Caffeinate and copy - exit if the return value is
+    # non-zero
+    local from="$1" to="$2"
+    if [ -z "$from" ] || [ -z "$to" ]; then
+        # Missing one or more args
+        exit 1
+    fi
+    if [ -d "$from" ]; then
+        # Copying a directory
+        caffeinate -d -i cp -R "$from" "$to"
+    elif [ -e "$from" ]; then
+        # Copying a file
+        caffeinate -d -i cp "$from" "$to"
+    else
+        # Doesn't exist
+        exit 1
+    fi
+    if [ "$?" != "0" ]; then
+        exit $?
+    fi
+}
+/
 pickApp
 
 clear 2>/dev/null
@@ -238,7 +261,7 @@ if [[ ! "$install_app" == "$target_app" ]]; then
         rm -rf "$target_app"
     fi
     echo - Copying "$app_name" to "$selected_disk"...
-    cp -R "$install_app" "$selected_disk"
+    copyTo "$install_app" "$selected_disk"
 fi
 echo - Creating "$app_name"/Contents/SharedSupport...
 mkdir -p "$target_app/Contents/SharedSupport"
@@ -248,10 +271,10 @@ if [ "$install_type" == "ia" ]; then
     do
         if [ "$f" == "InstallAssistant.pkg" ]; then
             echo "--> $f -- SharedSupport.dmg"
-            cp "$dir/$f" "$target_app/Contents/SharedSupport/SharedSupport.dmg"
+            copyTo "$dir/$f" "$target_app/Contents/SharedSupport/SharedSupport.dmg"
         else
             echo "--> $f"
-            cp "$dir/$f" "$target_app/Contents/SharedSupport/$f"
+            copyTo "$dir/$f" "$target_app/Contents/SharedSupport/$f"
         fi
     done
 else
@@ -262,10 +285,10 @@ else
             continue
         elif [ "$f" == "InstallESDDmg.pkg" ]; then
             echo "--> $f -- InstallESD.dmg"
-            cp "$dir/$f" "$target_app/Contents/SharedSupport/InstallESD.dmg"
+            copyTo "$dir/$f" "$target_app/Contents/SharedSupport/InstallESD.dmg"
         else
             echo "--> $f"
-            cp "$dir/$f" "$target_app/Contents/SharedSupport/$f"
+            copyTo "$dir/$f" "$target_app/Contents/SharedSupport/$f"
         fi
     done
     # Now we need to read the InstallInfo.plist and echo the lines to
