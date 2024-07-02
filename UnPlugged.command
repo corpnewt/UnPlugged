@@ -197,7 +197,6 @@ function copyTo () {
         exit $?
     fi
 }
-/
 pickApp
 
 clear 2>/dev/null
