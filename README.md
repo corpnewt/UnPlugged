@@ -51,7 +51,7 @@ Bash script to help build and run an offline installer in recovery.
 
     ◦ Make sure to replace `macOS` with the name of the folder containing the gibMacOS files and `UnPlugged.command`
 
-7. Type `./UnPlugged.command` to launch the script
+8. Type `./UnPlugged.command` to launch the script
 
     ◦ If that does not work - you can type `bash UnPlugged.command`
 
@@ -62,6 +62,8 @@ Bash script to help build and run an offline installer in recovery.
 3. The script will then prompt asking for the target volume - this is the volume that you just created in Disk Utility.  The one where you intend to install macOS
 4. Then you'll be presented with a task list - and asked if you want to continue - type `y` and enter
 5. The script will build the full install app and launch it from the Terminal for you - continue the rest of the install as normal
+
+    ◦ Make sure to leave the Terminal open - do not quit it, as doing so will also quit the installer.
 
 ## Sonoma Notes
 
