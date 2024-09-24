@@ -57,11 +57,18 @@ Bash script to help build and run an offline installer in recovery.
 
 ## UnPlugged.command Steps
 
-1. The script will list any detected `Install macOS [version].app` directories - select the one that matches the intended OS version to install (in most cases there will only be one detected)
-2. The script should auto-detect the required files - but if it does not, it will prompt for the path to them here
-3. The script will then prompt asking for the target volume - this is the volume that you just created in Disk Utility.  The one where you intend to install macOS
-4. Then you'll be presented with a task list - and asked if you want to continue - type `y` and enter
-5. The script will build the full install app and launch it from the Terminal for you - continue the rest of the install as normal
+1. The script will assess available approaches for locating the `Install [macOS version].app` needed, and may prompt you to choose from a list of two or more of the following:
+   
+    ◦ `Fully expand InstallAssistant.pkg - slower, but no risk of app mismatch` - if using a 10.15+ recovery env with an InstallAssistant.pkg
+   
+    ◦ `Extract the Install [macOS version].app from BaseSystem.dmg` - if a BaseSystem.dmg or RecoveryImage.dmg is detected next to InstallAssistant.pkg
+   
+    ◦ `Choose a locally discovered Install [macOS version].app` - if any installers were detected locally
+   
+3. The script should auto-detect the required files - but if it does not, it will prompt for the path to them here
+4. The script will then prompt asking for the target volume - this is the volume that you just created in Disk Utility.  The one where you intend to install macOS
+5. Then you'll be presented with a task list - and asked if you want to continue - type `y` and enter
+6. The script will build the full install app and launch it from the Terminal for you - continue the rest of the install as normal
 
     ◦ Make sure to leave the Terminal open - do not quit it, as doing so will also quit the installer.
 
@@ -84,12 +91,6 @@ USB Drive
     \-> UnPlugged.command
 ```
 
-In order for `UnPlugged.command` to be able to find the `Install macOS Sonoma.app`, you'll need to mount the BaseSystem.dmg for it using `hdiutil` from the terminal.  Assuming the above USB drive layout, and assuming the ExFAT volume is named `UnPlugged`, you can accomplish that with the following command in the terminal:
-
-```
-hdiutil attach -noverify /Volumes/UnPlugged/BaseSystem.dmg
-```
-
-Make sure you replace `/Volumes/UnPlugged/BaseSystem.dmg` with the path to your .dmg if you're using a different volume name or directory layout.  The `-noverify` argument just prevents verifying the .dmg's checksum in order to speed up mounting.  You can omit that if you want the .dmg verified.
+When prompted to select where you would like to get the `Install [macos Version].app` from, selecting `Extract the Install [macOS version].app from BaseSystem.dmg` will leverage the provided BaseSystem.dmg.
 
 The rest of the process should be the same as with prior OS versions.
