@@ -334,6 +334,8 @@ function mountAndExploreDmg () {
 # pkgutil's --expand-full arg showed up in Catalina
 can_expand_full="$(compare_to_version "3" "10.15")"
 findApps
+echo
+echo
 clear 2>/dev/null
 hasAll
 if [ "$has_all" != "TRUE" ]; then
@@ -392,6 +394,11 @@ if [ "$install_type" == "ia" ]; then
     # the first letter of the text
     if [ "${using_approach:0:1}" == "F" ]; then
         expand_installassistant=1
+        # Scrape the app name from the pkg itself
+        app_temp="$(pkgutil --payload-files "$dir/InstallAssistant.pkg" 2>/dev/null | grep -iE "(?i)^.*/Applications/Install[^/]+\.app$")"
+        if [ ! -z "$app_temp" ]; then
+            app_name="${app_temp##*/}"
+        fi
     elif [ "${using_approach:0:1}" == "E" ]; then
         mount_basesystem=1
     elif [ "${using_approach:0:1}" == "C" ]; then
@@ -412,12 +419,13 @@ fi
 
 pickDisk
 
+# Resolve our display name before listing the summary
+[ -z "$app_name" ] && display_app="Install [macOS version].app" || display_app="$app_name"
 # Walk our task list and outline what we'll be doing
 echo
 clear 2>/dev/null
 echo Task Summary:
 echo
-[ -z "$app_name" ] && display_app="Install [macOS version].app" || display_app="$app_name"
 if [ "$mount_basesystem" == "1" ]; then
     echo "- Mount $base_system"
     echo "- Copy $display_app to a temp folder on $selected_disk"
@@ -459,95 +467,86 @@ if [ "$expand_installassistant" == "1" ]; then
         exit 1
     fi
     # Find both the Install [macOS version].app and the SharedSupport.dmg
-    echo "- Locating Install [macos version].app..."
+    echo "- Locating $display_app..."
     app_path="$(find "$temp/InstallAssistant" -name "Install*.app" -type d 2>/dev/null | head -n 1)"
     if [ -z "$app_path" ] || [ ! -d "$app_path" ]; then
-        echo "--> Could not locate Install [macOS version].app - aborting..."
+        echo "--> Could not locate $display_app - aborting..."
         exit 1
     fi
     app_name="${app_path##*/}"
     echo "--> Found $app_name"
     target_app="$temp"/"$app_name"
-    echo "- Locating SharedSupport.dmg..."
-    ss_path="$(find "$temp/InstallAssistant" -name "SharedSupport.dmg" -type f 2>/dev/null | head -n 1)"
-    if [ -z "$ss_path" ] || [ ! -f "$ss_path" ]; then
-        echo "--> Could not locate SharedSupport.dmg - aborting..."
-        exit 1
-    fi
-    echo - Creating "$app_name"/Contents/SharedSupport...
-    mkdir -p "$app_path/Contents/SharedSupport"
     echo "- Moving files into place..."
-    mv "$app_path" "$temp"
-    mv "$ss_path" "$target_app/Contents/SharedSupport"
+    mv "$app_path" "$target_app"
     echo "- Cleaning up..."
     rm -rf "$temp/InstallAssistant"
 else
     # Not expanding the InstallAssistant.pkg - let's copy our app over
     # and then our files
     if [ -z "$app_name" ]; then
-        echo "No Install [macOS version].app was specified - aborting..."
+        echo "No $display_app was specified - aborting..."
         exit 1
     fi
     target_app="$temp"/"$app_name"
     echo "- Copying $app_name to $temp..."
     copyTo "$app_path" "$target_app"
-    echo - Creating "$app_name"/Contents/SharedSupport...
-    mkdir -p "$target_app/Contents/SharedSupport"
-    echo - Copying files to SharedSupport - may take some time...
-    if [ "$install_type" == "ia" ]; then
-        for f in "${ia_required[@]}"
-        do
-            if [ "$f" == "InstallAssistant.pkg" ]; then
-                echo "--> $f -- SharedSupport.dmg"
-                copyTo "$dir/$f" "$target_app/Contents/SharedSupport/SharedSupport.dmg"
-            else
-                echo "--> $f"
-                copyTo "$dir/$f" "$target_app/Contents/SharedSupport/$f"
-            fi
-        done
-    else
-        for f in "${ie_required[@]}"
-        do
-            if [ "$f" == "InstallInfo.plist" ]; then
-                # Skip this so we can handle it more specifically
+fi
+echo - Creating "$app_name"/Contents/SharedSupport...
+mkdir -p "$target_app/Contents/SharedSupport"
+echo - Copying files to SharedSupport - may take some time...
+if [ "$install_type" == "ia" ]; then
+    for f in "${ia_required[@]}"
+    do
+        if [ "$f" == "InstallAssistant.pkg" ]; then
+            echo "--> $f -- SharedSupport.dmg"
+            copyTo "$dir/$f" "$target_app/Contents/SharedSupport/SharedSupport.dmg"
+        else
+            echo "--> $f"
+            copyTo "$dir/$f" "$target_app/Contents/SharedSupport/$f"
+        fi
+    done
+else
+    for f in "${ie_required[@]}"
+    do
+        if [ "$f" == "InstallInfo.plist" ]; then
+            # Skip this so we can handle it more specifically
+            continue
+        elif [ "$f" == "InstallESDDmg.pkg" ]; then
+            echo "--> $f -- InstallESD.dmg"
+            copyTo "$dir/$f" "$target_app/Contents/SharedSupport/InstallESD.dmg"
+        else
+            echo "--> $f"
+            copyTo "$dir/$f" "$target_app/Contents/SharedSupport/$f"
+        fi
+    done
+    # Now we need to read the InstallInfo.plist and echo the lines to
+    # the target file, but skip chunklistURL and chunklistid in the
+    # Payload Info key - and update the id and URL keys
+    echo "--> InstallInfo.plist (patching)"
+    got_payload="FALSE"
+    skip_next=
+    while read -r line; do
+        if [ "$skip_next" != "" ]; then
+            skip_next=
+            continue 
+        fi
+        # Check for <key>Payload Image Info</key>
+        if [ "$line" == "<key>Payload Image Info</key>" ]; then
+            got_payload="TRUE"
+        elif [ "$got_payload" == "TRUE" ]; then
+            if [ "$line" == "</dict>" ]; then
+                got_payload="FALSE"
+            elif [ "$line" == "<key>chunklistURL</key>" ] || [ "$line" == "<key>chunklistid</key>" ]; then
+                skip_next="TRUE"
                 continue
-            elif [ "$f" == "InstallESDDmg.pkg" ]; then
-                echo "--> $f -- InstallESD.dmg"
-                copyTo "$dir/$f" "$target_app/Contents/SharedSupport/InstallESD.dmg"
-            else
-                echo "--> $f"
-                copyTo "$dir/$f" "$target_app/Contents/SharedSupport/$f"
+            elif [ "$line" == "<string>InstallESDDmg.pkg</string>" ]; then
+                line="<string>InstallESD.dmg</string>"
+            elif [ "$line" == "<string>com.apple.pkg.InstallESDDmg</string>" ]; then
+                line="<string>com.apple.dmg.InstallESD</string>"
             fi
-        done
-        # Now we need to read the InstallInfo.plist and echo the lines to
-        # the target file, but skip chunklistURL and chunklistid in the
-        # Payload Info key - and update the id and URL keys
-        echo "--> InstallInfo.plist (patching)"
-        got_payload="FALSE"
-        skip_next=
-        while read -r line; do
-            if [ "$skip_next" != "" ]; then
-                skip_next=
-                continue 
-            fi
-            # Check for <key>Payload Image Info</key>
-            if [ "$line" == "<key>Payload Image Info</key>" ]; then
-                got_payload="TRUE"
-            elif [ "$got_payload" == "TRUE" ]; then
-                if [ "$line" == "</dict>" ]; then
-                    got_payload="FALSE"
-                elif [ "$line" == "<key>chunklistURL</key>" ] || [ "$line" == "<key>chunklistid</key>" ]; then
-                    skip_next="TRUE"
-                    continue
-                elif [ "$line" == "<string>InstallESDDmg.pkg</string>" ]; then
-                    line="<string>InstallESD.dmg</string>"
-                elif [ "$line" == "<string>com.apple.pkg.InstallESDDmg</string>" ]; then
-                    line="<string>com.apple.dmg.InstallESD</string>"
-                fi
-            fi
-            echo "$line" >> "$target_app/Contents/SharedSupport/InstallInfo.plist"
-        done < "$dir/InstallInfo.plist"
-    fi
+        fi
+        echo "$line" >> "$target_app/Contents/SharedSupport/InstallInfo.plist"
+    done < "$dir/InstallInfo.plist"
 fi
 # Clean up after ourselves if needed
 if [ ! -z "$mount_point" ]; then
