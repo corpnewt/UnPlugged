@@ -493,16 +493,16 @@ else
 fi
 echo - Creating "$app_name"/Contents/SharedSupport...
 mkdir -p "$target_app/Contents/SharedSupport"
-echo - Copying files to SharedSupport - may take some time...
+echo - Linking and copying files to SharedSupport...
 if [ "$install_type" == "ia" ]; then
     for f in "${ia_required[@]}"
     do
         if [ "$f" == "InstallAssistant.pkg" ]; then
             echo "--> $f -- SharedSupport.dmg"
-            copyTo "$dir/$f" "$target_app/Contents/SharedSupport/SharedSupport.dmg"
+            ln -s "$dir/$f" "$target_app/Contents/SharedSupport/SharedSupport.dmg"
         else
             echo "--> $f"
-            copyTo "$dir/$f" "$target_app/Contents/SharedSupport/$f"
+            ln -s "$dir/$f" "$target_app/Contents/SharedSupport/$f"
         fi
     done
 else
@@ -513,10 +513,10 @@ else
             continue
         elif [ "$f" == "InstallESDDmg.pkg" ]; then
             echo "--> $f -- InstallESD.dmg"
-            copyTo "$dir/$f" "$target_app/Contents/SharedSupport/InstallESD.dmg"
+            ln -s "$dir/$f" "$target_app/Contents/SharedSupport/InstallESD.dmg"
         else
             echo "--> $f"
-            copyTo "$dir/$f" "$target_app/Contents/SharedSupport/$f"
+            ln -s "$dir/$f" "$target_app/Contents/SharedSupport/$f"
         fi
     done
     # Now we need to read the InstallInfo.plist and echo the lines to
