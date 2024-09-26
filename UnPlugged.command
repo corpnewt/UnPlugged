@@ -47,6 +47,7 @@ function pickDisk () {
     read -r -p "Select the target install volume: " drive
     if [ -z "$drive" ]; then
         pickDisk
+        return
     fi
     if [ "$drive" == "q" ]; then
         exit 0
@@ -59,6 +60,7 @@ function pickDisk () {
     fi
     if [ -z "$selected_disk" ]; then
         pickDisk
+        return
     fi
 }
 
@@ -93,6 +95,7 @@ function pickApp () {
     read -r -p "Select the source macOS recovery installer: " app
     if [[ "$app" == "" ]]; then
         pickApp
+        return
     fi
     if [ "$app" == "q" ]; then
         exit 0
@@ -107,6 +110,7 @@ function pickApp () {
     app_path="$(stripSlash "$app_path")"
     if [ -z "$app_path" ]; then
         pickApp
+        return
     fi
 }
 
@@ -145,6 +149,7 @@ function pickApproach () {
     read -r -p "Select the approach you'd like to use: " app
     if [[ "$app" == "" ]]; then
         pickApproach
+        return
     fi
     if [ "$app" == "q" ]; then
         exit 0
@@ -158,6 +163,7 @@ function pickApproach () {
     # Strip trailing slashes
     if [ -z "$using_approach" ]; then
         pickApproach
+        return
     fi
 }
 
@@ -215,14 +221,31 @@ function pickDir () {
     if [ "$dir" == "q" ]; then
         exit 0
     fi
-    if [ -z "$dir" ] || [ ! -d "$dir" ]; then
+    if [ -z "$dir" ] || [ ! -e "$dir" ]; then
         pickDir
+        return
+    fi
+    if [ ! -d "$dir" ]; then
+        # Got a file instead - try to get the parent dir
+        # by getting the length of the file name and
+        # gathering a dir substring from index 0 through
+        # length of dir - length of file name
+        local filename="${dir##*/}"
+        local name_len="${#filename}"
+        local dir_len="${#dir}"
+        dir="${dir:0:$((dir_len - name_len))}"
+        if [ ! -d "$dir" ]; then
+            # Failsafe just in case something went wrong
+            pickDir
+            return
+        fi
     fi
     # Now check again if we have all files
     echo
     hasAll
     if [ "$has_all" != "TRUE" ]; then
         pickDir
+        return
     fi
 }
 
