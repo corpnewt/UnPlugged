@@ -476,6 +476,10 @@ echo Executing tasks...
 echo
 # Get a destination temp folder
 temp="$(getTemp "$selected_disk")"
+if [ -z "$temp" ] || [ ! -d "$temp" ]; then
+    echo "Failed to create temp folder - aborting..."
+    exit 1
+fi
 if [ "$mount_basesystem" == "1" ]; then
     mountAndExploreDmg
 fi
