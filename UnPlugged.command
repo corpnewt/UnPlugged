@@ -387,7 +387,14 @@ if [ "$install_type" == "ia" ]; then
         (( approach_count++ ))
     fi
     if [ "$app_count" -gt 0 ]; then
-        approaches+=("Choose a locally discovered Install [macOS version].app")
+        if [ "$app_count" == "1" ]; then
+            # We only found one - use its name
+            temp_path="$(stripSlash "${app_list[0]}")"
+            temp_name="${temp_path##*/}"
+            approaches+=("Choose the locally discovered $temp_name")
+        else
+            approaches+=("Choose a locally discovered Install [macOS version].app ($app_count total)")
+        fi
         (( approach_count++ ))
     fi
     if [ "$approach_count" -le 0 ]; then
