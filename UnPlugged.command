@@ -291,45 +291,6 @@ function getTemp () {
     fi
 }
 
-function format_version () {
-    local vers="$1"
-    echo "$(echo "$1" | awk -F. '{ printf("%d%03d%03d%03d\n", $1,$2,$3,$4); }')"
-}
-
-function vercomp () {
-    # Modified from: https://apple.stackexchange.com/a/123408/11374
-    local ver1="$(format_version "$1")" ver2="$(format_version "$2")"
-    if [ $ver1 -gt $ver2 ]; then
-        echo "1"
-    elif [ $ver1 -lt $ver2 ]; then
-        echo "2"
-    else
-        echo "0"
-    fi
-}
-
-function compare_to_version () {
-    # Compares our OS version to the passed OS version, and
-    # return a 1 if we match the passed compare type, or a 0 if we don't.
-    # $1 = 0 (equal), 1 (greater), 2 (less), 3 (gequal), 4 (lequal)
-    # $2 = OS version to compare ours to
-    if [ -z "$1" ] || [ -z "$2" ]; then
-        # Missing info - bail.
-        return
-    fi
-    local current_os= comp=
-    current_os="$(sw_vers -productVersion)"
-    comp="$(vercomp "$current_os" "$2")"
-    # Check gequal and lequal first
-    if [[ "$1" == "3" && ("$comp" == "1" || "$comp" == "0") ]] || [[ "$1" == "4" && ("$comp" == "2" || "$comp" == "0") ]] || [[ "$comp" == "$1" ]]; then
-        # Matched
-        echo "1"
-    else
-        # No match
-        echo "0"
-    fi
-}
-
 function mountAndExploreDmg () {
     echo "- Mounting $base_system..."
     disk_ident="$(hdiutil attach -noverify -nobrowse "$dir/$base_system" | tail -n 1 | cut -d' ' -f1)"
@@ -354,8 +315,9 @@ function mountAndExploreDmg () {
 }
 
 # Gather some info to figure out how to proceed
-# pkgutil's --expand-full arg showed up in Catalina
-can_expand_full="$(compare_to_version "3" "10.15")"
+# Let's look for "expand-full" in pkgutil itself
+grep -a expand-full /usr/sbin/pkgutil >/dev/null 2>&1
+[ "$?" == "0" ] && can_expand_full=1 || can_expand_full=0
 findApps
 echo
 echo
@@ -402,8 +364,8 @@ if [ "$install_type" == "ia" ]; then
         build="$(sw_vers -buildVersion)"
         echo
         clear 2>/dev/null
-        echo "macOS 10.15 recovery env or newer is required in order to use pkgutil's"
-        echo "--expand-full switch - currently running macOS $prod ($build)."
+        echo "The pkgutil binary in this recovery env does not support the --expand-full"
+        echo "switch - currently running macOS $prod ($build)."
         echo
         echo "There was no fallback BaseSystem.dmg or RecoveryImage.dmg located in the"
         echo "selected directory, and no macOS installer app located locally."
