@@ -59,7 +59,7 @@ Bash script to help build and run an offline installer in recovery.
 
 1. The script will assess available approaches for locating the `Install [macOS version].app` needed, and may prompt you to choose from a list of two or more of the following:
    
-    ◦ `Fully expand InstallAssistant.pkg - slower, but no risk of app mismatch` - if using a 10.15+ recovery env with an InstallAssistant.pkg
+    ◦ `Fully expand InstallAssistant.pkg - slower, but no risk of app mismatch` - if leveraging InstallAssistant.pkg on a recovery env where `pkgutil` supports the `--expand-full` switch (most do)
    
     ◦ `Extract the Install [macOS version].app from BaseSystem.dmg` - if a BaseSystem.dmg or RecoveryImage.dmg is detected next to InstallAssistant.pkg
    
