@@ -76,7 +76,7 @@ Bash script to help build and run an offline installer in recovery.
 
 It seems the Sonoma BaseSystem.dmg recovery environment does not allow mounting FAT32 or ExFAT volumes at all.  To work around this using UnPlugged requires a couple extra steps.
 
-You'll need to use an earlier BaseSystem.dmg|.chunklist downloaded via `macrecovery.py` in your com.apple.recovery.boot folder (Ventura works fine with FAT32 and ExFAT volumes).  You'll also need to download Sonoma's BaseSystem.dmg via `macrecovery.py` and place that alongside the files downloaded with `gibMacOS`.  The end result should look something like the following:
+You'll need to use an earlier BaseSystem.dmg|.chunklist downloaded via `macrecovery.py` in your com.apple.recovery.boot folder (Ventura works fine with FAT32 and ExFAT volumes).  You'll also need to download Sonoma's BaseSystem.dmg via `macrecovery.py` and place that alongside the files downloaded with `gibMacOS` if you don't intend to expand the InstallAsisstant.pkg directly.  The end result should look something like the following:
 
 ```
 USB Drive
@@ -87,7 +87,7 @@ USB Drive
 |       \-> BaseSystem.chunklist (for Ventura)
 \-> 15+GB ExFAT Partition (named UnPlugged or similar)
     |-> InstallAssistant.pkg (for Sonoma)
-    |-> BaseSystem.dmg (for Sonoma)
+    |-> BaseSystem.dmg (for Sonoma - if not expanding the .pkg directly)
     \-> UnPlugged.command
 ```
 
