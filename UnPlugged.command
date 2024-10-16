@@ -3,8 +3,19 @@
 # Get the curent directory
 args=( "$@" )
 dir="$(cd -- "$(dirname "$0" 2>/dev/null)" >/dev/null 2>&1; pwd -P)"
+# Set up some default vars
 selected_disk=
-install_app=
+app_list=
+app_count=0
+app_path=
+app_name=
+approach_count=0
+approaches=()
+using_approach=
+base_system=
+disk_ident=
+mount_point=
+target_app=
 ia_required=("InstallAssistant.pkg")
 ie_required=("BaseSystem.dmg" "BaseSystem.chunklist" "InstallESDDmg.pkg" "InstallInfo.plist" "AppleDiagnostics.dmg" "AppleDiagnostics.chunklist")
 install_type="ia"
@@ -34,36 +45,44 @@ function pickDisk () {
     driveIndex=$(( driveCount-1 ))
     echo
     read -r -p "Select the target install volume: " drive
-    if [[ "$drive" == "" ]]; then
+    if [ -z "$drive" ]; then
         pickDisk
+        return
     fi
     if [ "$drive" == "q" ]; then
         exit 0
     fi
     if [ "$drive" -eq "$drive" ] 2>/dev/null; then
-        if [  "$drive" -le "$driveCount" ] && [  "$drive" -gt "0" ]; then
+        if [  "$drive" -le "$driveCount" ] && [  "$drive" -gt 0 ]; then
             drive="${driveArray[ (( $drive-1 )) ]}"
             selected_disk="/Volumes/$drive"
         fi
     fi
-    if [ "$selected_disk" == "" ]; then
+    if [ -z "$selected_disk" ]; then
         pickDisk
+        return
     fi
 }
 
-function pickApp () {
-    install_app=
+function findApps () {
     local appList="$( find / -name "Install*.app" -type d -maxdepth 3 2>/dev/null )"
-    unset appArray
-    IFS=$'\n' read -rd '' -a appArray <<<"$appList"
-    local appCount=0
-    local appIndex=0
+    app_list=
+    IFS=$'\n' read -rd '' -a app_list <<<"$appList"
+    unset a
+    for a in "${app_list[@]}"
+    do
+        (( app_count++ ))
+    done
+}
 
+function pickApp () {
+    app_path=
+    local appCount=0
     echo
     clear 2>/dev/null
-    echo Listing any Install macOS applications....
+    echo Listing any Install macOS applications...
     echo
-    for anApp in "${appArray[@]}"
+    for anApp in "${app_list[@]}"
     do
         (( appCount++ ))
         echo "$appCount". "$anApp"
@@ -72,41 +91,79 @@ function pickApp () {
         echo - No installers found!
         exit 1
     fi
-    appIndex=$(( appCount-1 ))
     echo
     read -r -p "Select the source macOS recovery installer: " app
     if [[ "$app" == "" ]]; then
         pickApp
+        return
     fi
     if [ "$app" == "q" ]; then
         exit 0
     fi
     # Make sure it's a number, and within range
     if [ "$app" -eq "$app" ] 2>/dev/null; then
-        if [  "$app" -le "$appCount" ] && [  "$app" -gt "0" ]; then
-            app="${appArray[ (( $app-1 )) ]}"
-            install_app="$app"
+        if [  "$app" -le "$appCount" ] && [  "$app" -gt 0 ]; then
+            app_path="${app_list[ (( $app-1 )) ]}"
         fi
     fi
     # Strip trailing slashes
-    stripSlash
-    if [ "$install_app" == "" ]; then
+    app_path="$(stripSlash "$app_path")"
+    if [ -z "$app_path" ]; then
         pickApp
+        return
     fi
 }
 
 function stripSlash () {
-    if [ "$install_app" == "" ]; then
+    local path="$1"
+    if [ -z "$path" ]; then
         return
     fi
     # Attempt to remove a trailing slash - if any
-    install_app_check="${install_app%/}"
-    if [ "$install_app_check" == "$install_app" ]; then
-        return
+    path_check="${path%/}"
+    if [ "$path_check" == "$path" ]; then
+        echo "$path"
     else
-        # A change was made - save it, and try again
-        install_app="$install_app_check"
-        stripSlash
+        # A change was made - try again
+        echo "$(stripSlash "$path_check")"
+    fi
+}
+
+function pickApproach () {
+    using_approach=
+    local appCount=0
+    echo
+    clear 2>/dev/null
+    echo "Possible ways to get Install [macOS version].app:"
+    echo
+    for anApp in "${approaches[@]}"
+    do
+        (( appCount++ ))
+        echo "$appCount". "$anApp"
+    done
+    if [ "$appCount" -le 0 ]; then
+        echo - No possible ways found!
+        exit 1
+    fi
+    echo
+    read -r -p "Select the approach you'd like to use: " app
+    if [[ "$app" == "" ]]; then
+        pickApproach
+        return
+    fi
+    if [ "$app" == "q" ]; then
+        exit 0
+    fi
+    # Make sure it's a number, and within range
+    if [ "$app" -eq "$app" ] 2>/dev/null; then
+        if [  "$app" -le "$appCount" ] && [  "$app" -gt 0 ]; then
+            using_approach="${approaches[ (( $app-1 )) ]}"
+        fi
+    fi
+    # Strip trailing slashes
+    if [ -z "$using_approach" ]; then
+        pickApproach
+        return
     fi
 }
 
@@ -164,14 +221,31 @@ function pickDir () {
     if [ "$dir" == "q" ]; then
         exit 0
     fi
-    if [ "$dir" == "" ] || [ ! -d "$dir" ]; then
+    if [ -z "$dir" ] || [ ! -e "$dir" ]; then
         pickDir
+        return
+    fi
+    if [ ! -d "$dir" ]; then
+        # Got a file instead - try to get the parent dir
+        # by getting the length of the file name and
+        # gathering a dir substring from index 0 through
+        # length of dir - length of file name
+        local filename="${dir##*/}"
+        local name_len="${#filename}"
+        local dir_len="${#dir}"
+        dir="${dir:0:$((dir_len - name_len))}"
+        if [ ! -d "$dir" ]; then
+            # Failsafe just in case something went wrong
+            pickDir
+            return
+        fi
     fi
     # Now check again if we have all files
     echo
     hasAll
     if [ "$has_all" != "TRUE" ]; then
         pickDir
+        return
     fi
 }
 
@@ -198,51 +272,165 @@ function copyTo () {
     fi
 }
 
-pickApp
+function getTemp () {
+    # Helper to generate a temp folder name at the passed
+    # volume root and ensure it doesn't already exist
+    local path="$1"
+    path="$(stripSlash "$path")"
+    if [ -z "$path" ] || [ ! -d "$path" ]; then
+        # We need a valid, non-root, directory path
+        return
+    fi
+    temp_path="$path/macOS-Installer-$(uuidgen)"
+    if [ ! -d "$temp_path" ]; then
+        # Create it and return the path
+        mkdir -p "$temp_path"
+        echo "$temp_path"
+    else
+        echo "$(getTemp)"
+    fi
+}
 
+function mountAndExploreDmg () {
+    echo "- Mounting $base_system..."
+    disk_ident="$(hdiutil attach -noverify -nobrowse "$dir/$base_system" | tail -n 1 | cut -d' ' -f1)"
+    if [ -z "$disk_ident" ]; then
+        echo "--> Failed to mount - aborting..."
+        exit 1
+    fi
+    mount_point="$(diskutil info "$disk_ident" | grep 'Mount Point' | cut -d : -f 2 | sed 's/^ *//g' | sed 's/ *$//g')"
+    if [ -z "$mount_point" ] || [ ! -d "$mount_point" ]; then
+        echo "--> Could not locate mount point - aborting..."
+        exit 1
+    fi
+    echo "- Locating Install [macOS version].app..."
+    # Gather the first hit from the find command
+    app_path="$(find "$mount_point" -name "Install*.app" -type d -maxdepth 1 2>/dev/null | head -n 1)"
+    if [ -z "$app_path" ] || [ ! -d "$app_path" ]; then
+        echo "--> Could not locate Install [macOS version].app - aborting..."
+        exit 1
+    fi
+    app_name="${app_path##*/}"
+    echo "--> Found $app_name"
+}
+
+# Gather some info to figure out how to proceed
+# Let's look for "expand-full" in pkgutil itself
+grep -a expand-full /usr/sbin/pkgutil >/dev/null 2>&1
+[ "$?" == "0" ] && can_expand_full=1 || can_expand_full=0
+findApps
+echo
+echo
 clear 2>/dev/null
-echo Using: "$install_app"
-echo
-echo Verifying if app is already a full installer...
-if [ -d "$install_app/Contents/SharedSupport" ]; then
-    echo - Already a full installer!
-    exit 1
-fi
-echo - Not a full installer
-echo
-
 hasAll
-
 if [ "$has_all" != "TRUE" ]; then
     pickDir
+fi
+if [ -e "$dir/BaseSystem.dmg" ]; then
+    base_system="BaseSystem.dmg"
+elif [ -e "$dir/RecoveryImage.dmg" ]; then
+    base_system="RecoveryImage.dmg"
+fi
+
+# Here we should be able to list the options for the user
+# based on what we discovered above.
+# Let's create a few task items to outline.
+mount_basesystem=0
+expand_installassistant=0
+
+if [ "$install_type" == "ia" ]; then
+    # Prompt for any approaches we can use if > 1
+    if [ "$can_expand_full" == "1" ]; then
+        approaches+=("Fully expand InstallAssistant.pkg - slower, but no risk of app mismatch")
+        (( approach_count++ ))
+    fi
+    if [ ! -z "$base_system" ]; then
+        approaches+=("Extract the Install [macOS version].app from $base_system")
+        (( approach_count++ ))
+    fi
+    if [ "$app_count" -gt 0 ]; then
+        if [ "$app_count" == "1" ]; then
+            # We only found one - use its name
+            temp_path="$(stripSlash "${app_list[0]}")"
+            temp_name="${temp_path##*/}"
+            approaches+=("Choose the locally discovered $temp_name")
+        else
+            approaches+=("Choose a locally discovered Install [macOS version].app ($app_count total)")
+        fi
+        (( approach_count++ ))
+    fi
+    if [ "$approach_count" -le 0 ]; then
+        prod="$(sw_vers -productVersion)"
+        build="$(sw_vers -buildVersion)"
+        echo
+        clear 2>/dev/null
+        echo "The pkgutil binary in this recovery env does not support the --expand-full"
+        echo "switch - currently running macOS $prod ($build)."
+        echo
+        echo "There was no fallback BaseSystem.dmg or RecoveryImage.dmg located in the"
+        echo "selected directory, and no macOS installer app located locally."
+        echo
+        echo "Without a dmg or installer application, this script cannot continue."
+        echo
+        echo "Aborting..."
+        exit 1
+    fi
+    if [ "$approach_count" -gt 1 ]; then
+        # Show a menu and let the user pick one
+        pickApproach
+    else
+        # Only one to choose from - use that
+        using_approach="${approaches[0]}"
+    fi
+    # Let's set up the tasks for our selected approach based on
+    # the first letter of the text
+    if [ "${using_approach:0:1}" == "F" ]; then
+        expand_installassistant=1
+        # Scrape the app name from the pkg itself
+        app_temp="$(pkgutil --payload-files "$dir/InstallAssistant.pkg" 2>/dev/null | grep -iE "(?i)^.*/Applications/Install[^/]+\.app$")"
+        if [ ! -z "$app_temp" ]; then
+            app_name="${app_temp##*/}"
+        fi
+    elif [ "${using_approach:0:1}" == "E" ]; then
+        mount_basesystem=1
+    elif [ "${using_approach:0:1}" == "C" ]; then
+        # Check if we only got one app - and if so, just use that
+        # - else just prompt
+        if [ "$app_count" == "1" ]; then
+            app_path="$(stripSlash "${app_list[0]}")"
+        else
+            pickApp
+        fi
+        # Resolve the name as well
+        app_name="${app_path##*/}"
+    fi
+else
+    # Only one approach to use here
+    mount_basesystem=1
 fi
 
 pickDisk
 
-# At this point, we have our install app, SharedSupport folder
-# and our target volume.  Let's copy the .app to the target
-# volume (if needed), then copy the SharedSupport folder to 
-# Install macOS [version].app/Contents/SharedSupport and start
-# the installer.
+# Resolve our display name before listing the summary
+[ -z "$app_name" ] && display_app="Install [macOS version].app" || display_app="$app_name"
+# Walk our task list and outline what we'll be doing
 echo
 clear 2>/dev/null
 echo Task Summary:
 echo
-app_name="${install_app##*/}"
-target_app="$selected_disk"/"$app_name"
-if [[ "$install_app" == "$target_app" ]]; then
-    echo - Leave "$app_name" in place
-else
-    if [ -d "$target_app" ]; then
-        echo - Delete existing "$target_app"
-    fi
-    echo - Copy "$app_name" to "$selected_disk"
+if [ "$mount_basesystem" == "1" ]; then
+    echo "- Mount $base_system"
+    echo "- Copy $display_app to a temp folder on $selected_disk"
+elif [ "$expand_installassistant" == "1" ]; then
+    echo "- Expand InstallAssistant.pkg to a temp folder on $selected_disk"
+elif [ ! -z "$app_name" ]; then
+    echo "- Copy $app_name to a temp folder on $selected_disk"
 fi
-echo - Set up SharedSupport in "$app_name"/Contents/
-echo - Caffeinate and launch "$app_name"
+echo "- Set up SharedSupport in $display_app/Contents/"
+echo "- Caffeinate and launch $display_app"
 echo
 while true; do
-    read -r -p "Do you wish to continue? " yn
+    read -r -p "Do you wish to continue? [y/n]: " yn
     case $yn in
         [Yy]* ) break;;
         [Nn]* ) exit;;
@@ -255,26 +443,62 @@ echo
 clear 2>/dev/null
 echo Executing tasks...
 echo
-if [[ ! "$install_app" == "$target_app" ]]; then
-    if [ -d "$target_app" ]; then
-        echo - Deleting existing "$target_app"
-        rm -rf "$target_app"
+# Get a destination temp folder
+temp="$(getTemp "$selected_disk")"
+if [ -z "$temp" ] || [ ! -d "$temp" ]; then
+    echo "Failed to create temp folder - aborting..."
+    exit 1
+fi
+if [ "$mount_basesystem" == "1" ]; then
+    mountAndExploreDmg
+fi
+if [ "$expand_installassistant" == "1" ]; then
+    # First we use the undocumented --expand-full flag for pkgutil
+    # to fully expand the InstallAssistant.pkg to the temp dir
+    # Caffeinate this process as it can take awhile
+    echo "- Expanding InstallAssistant.pkg - may take some time..."
+    caffeinate -d -i pkgutil --expand-full "$dir/InstallAssistant.pkg" "$temp/InstallAssistant"
+    if [ "$?" != "0" ]; then
+        echo "Something went wrong - aborting..."
+        exit 1
     fi
-    echo - Copying "$app_name" to "$selected_disk"...
-    copyTo "$install_app" "$selected_disk"
+    # Find both the Install [macOS version].app and the SharedSupport.dmg
+    echo "- Locating $display_app..."
+    app_path="$(find "$temp/InstallAssistant" -name "Install*.app" -type d 2>/dev/null | head -n 1)"
+    if [ -z "$app_path" ] || [ ! -d "$app_path" ]; then
+        echo "--> Could not locate $display_app - aborting..."
+        exit 1
+    fi
+    app_name="${app_path##*/}"
+    echo "--> Found $app_name"
+    target_app="$temp"/"$app_name"
+    echo "- Moving files into place..."
+    mv "$app_path" "$target_app"
+    echo "- Cleaning up..."
+    rm -rf "$temp/InstallAssistant"
+else
+    # Not expanding the InstallAssistant.pkg - let's copy our app over
+    # and then our files
+    if [ -z "$app_name" ]; then
+        echo "No $display_app was specified - aborting..."
+        exit 1
+    fi
+    target_app="$temp"/"$app_name"
+    echo "- Copying $app_name to $temp..."
+    copyTo "$app_path" "$target_app"
 fi
 echo - Creating "$app_name"/Contents/SharedSupport...
 mkdir -p "$target_app/Contents/SharedSupport"
-echo - Copying files to SharedSupport - may take some time...
+echo - Linking and copying files to SharedSupport...
 if [ "$install_type" == "ia" ]; then
     for f in "${ia_required[@]}"
     do
         if [ "$f" == "InstallAssistant.pkg" ]; then
             echo "--> $f -- SharedSupport.dmg"
-            copyTo "$dir/$f" "$target_app/Contents/SharedSupport/SharedSupport.dmg"
+            ln -s "$dir/$f" "$target_app/Contents/SharedSupport/SharedSupport.dmg"
         else
             echo "--> $f"
-            copyTo "$dir/$f" "$target_app/Contents/SharedSupport/$f"
+            ln -s "$dir/$f" "$target_app/Contents/SharedSupport/$f"
         fi
     done
 else
@@ -285,10 +509,10 @@ else
             continue
         elif [ "$f" == "InstallESDDmg.pkg" ]; then
             echo "--> $f -- InstallESD.dmg"
-            copyTo "$dir/$f" "$target_app/Contents/SharedSupport/InstallESD.dmg"
+            ln -s "$dir/$f" "$target_app/Contents/SharedSupport/InstallESD.dmg"
         else
             echo "--> $f"
-            copyTo "$dir/$f" "$target_app/Contents/SharedSupport/$f"
+            ln -s "$dir/$f" "$target_app/Contents/SharedSupport/$f"
         fi
     done
     # Now we need to read the InstallInfo.plist and echo the lines to
@@ -319,6 +543,17 @@ else
         fi
         echo "$line" >> "$target_app/Contents/SharedSupport/InstallInfo.plist"
     done < "$dir/InstallInfo.plist"
+fi
+# Clean up after ourselves if needed
+if [ ! -z "$mount_point" ]; then
+    echo "- Unmounting $base_system..."
+    hdiutil detach "$mount_point" >/dev/null 2>&1
+fi
+# Make sure the required files/dirs exist
+if [ -z "$app_name" ] || [ -z "$target_app" ] || [ ! -d "$target_app" ]; then
+    echo
+    echo Something went wrong - aborting...
+    exit 1
 fi
 echo - Caffeinating and launching "$app_name"...
 echo
