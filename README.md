@@ -19,18 +19,19 @@ Bash script to help build and run an offline installer in recovery.
 
     ◦ They just need to be the same **major** version (i.e. Ventura with Ventura), it **_does not_** need to be the exact same point release (i.e. 13.x.y and 13.x.y)
 
-3. Format your USB with 2 partitions:
+2. Format your USB with 2 partitions:
    
     ◦ A FAT32 partition of ~750MB to 1GB (enough to accommodate the EFI and com.apple.recovery.boot folders)
 
     ◦ An ExFAT partition of the remaining space (needs to be enough to accommodate the files downloaded from `gibMacOS`)
 
-4. Copy your EFI folder and the com.apple.recovery.boot folder over to the FAT32 partition
-5. Copy the folder containing the files downloaded from gibMacOS to the ExFAT partition
+3. Copy your EFI folder and the com.apple.recovery.boot folder over to the FAT32 partition
+4. Copy the folder containing the files downloaded from gibMacOS to the ExFAT partition
 
     ◦ You'll be `cd`ing to this folder later - so it may make sense to label it something easy to type like `macOS`
 
-6. Copy `UnPlugged.command` to that same folder on the ExFAT partition
+5. Copy `UnPlugged.command` to that same folder on the ExFAT partition
+6. Eject the USB drive - this ensures any pending cached writes are applied and can help prevent corrupt or incomplete file copies
 7. Boot into the install environment
 
 ## Recovery Environment Steps
@@ -51,7 +52,7 @@ Bash script to help build and run an offline installer in recovery.
 
     ◦ Make sure to replace `macOS` with the name of the folder containing the gibMacOS files and `UnPlugged.command`
 
-8. Type `./UnPlugged.command` to launch the script
+7. Type `./UnPlugged.command` to launch the script
 
     ◦ If that does not work - you can type `bash UnPlugged.command`
 
@@ -65,10 +66,10 @@ Bash script to help build and run an offline installer in recovery.
    
     ◦ `Choose a locally discovered Install [macOS version].app` - if any installers were detected locally
    
-3. The script should auto-detect the required files - but if it does not, it will prompt for the path to them here
-4. The script will then prompt asking for the target volume - this is the volume that you just created in Disk Utility.  The one where you intend to install macOS
-5. Then you'll be presented with a task list - and asked if you want to continue - type `y` and enter
-6. The script will build the full install app and launch it from the Terminal for you - continue the rest of the install as normal
+2. The script should auto-detect the required files - but if it does not, it will prompt for the path to them here
+3. The script will then prompt asking for the target volume - this is the volume that you just created in Disk Utility.  The one where you intend to install macOS
+4. Then you'll be presented with a task list - and asked if you want to continue - type `y` and enter
+5. The script will build the full install app and launch it from the Terminal for you - continue the rest of the install as normal
 
     ◦ Make sure to leave the Terminal open - do not quit it, as doing so will also quit the installer.
 
