@@ -449,9 +449,6 @@ if [ -z "$temp" ] || [ ! -d "$temp" ]; then
     echo "Failed to create temp folder - aborting..."
     exit 1
 fi
-if [ "$mount_basesystem" == "1" ]; then
-    mountAndExploreDmg
-fi
 if [ "$expand_installassistant" == "1" ]; then
     # First we use the undocumented --expand-full flag for pkgutil
     # to fully expand the InstallAssistant.pkg to the temp dir
@@ -477,6 +474,11 @@ if [ "$expand_installassistant" == "1" ]; then
     echo "- Cleaning up..."
     rm -rf "$temp/InstallAssistant"
 else
+    # Ensure we mount the BaseSystem.dmg/RecoveryImage.dmg
+    # as needed
+    if [ "$mount_basesystem" == "1" ]; then
+        mountAndExploreDmg
+    fi
     # Not expanding the InstallAssistant.pkg - let's copy our app over
     # and then our files
     if [ -z "$app_name" ]; then
