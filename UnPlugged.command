@@ -339,6 +339,18 @@ mount_basesystem=0
 expand_installassistant=0
 
 if [ "$install_type" == "ia" ]; then
+    # Try to list the contents of the pkg and reroute to /dev/null to
+    # make sure it's valid
+    pkgutil --payload-files "$dir/InstallAssistant.pkg" >/dev/null 2>&1
+    if [ "$?" != "0" ]; then
+        echo 
+        clear 2>/dev/null
+        echo "InstallAssistant.pkg appears to be corrupt.  Perhaps the download or copy"
+        echo "failed.  Please redownload the file and try again."
+        echo
+        echo "Aborting..."
+        exit 1
+    fi
     # Prompt for any approaches we can use if > 1
     if [ "$can_expand_full" == "1" ]; then
         approaches+=("Fully expand InstallAssistant.pkg - slower, but no risk of app mismatch")
