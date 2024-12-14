@@ -18,6 +18,8 @@ mount_point=
 target_app=
 ia_required=("InstallAssistant.pkg")
 ie_required=("BaseSystem.dmg" "BaseSystem.chunklist" "InstallESDDmg.pkg" "InstallInfo.plist" "AppleDiagnostics.dmg" "AppleDiagnostics.chunklist")
+old_required=("InstallOS.dmg" "InstallOS.pkg" "InstallMacOSX.dmg" "InstallMacOSX.pkg")
+old_target=
 install_type="ia"
 has_all="TRUE"
 
@@ -179,17 +181,30 @@ function hasAll () {
             has_all="FALSE"
         fi
     done
-
     if [ "$has_all" != "TRUE" ]; then
         # Reset our has_all check and install type
         has_all="TRUE"
-        install_type="ie"
+        install_type="ie" # Check for Catalina and prior
         for f in "${ie_required[@]}"
         do
             if [ -e "$dir/$f" ]; then
                 echo "- Found $f"
             else
                 has_all="FALSE"
+            fi
+        done
+    fi
+    if [ "$has_all" != "TRUE" ]; then
+        # Reset our has_all check and install type
+        has_all="FALSE"
+        install_type="old"
+        for f in "${old_required[@]}"
+        do
+            if [ -e "$dir/$f" ] && [ "$has_all" != "TRUE" ]; then
+                # Bail on the first match - only need the one file
+                echo "- Found $f"
+                has_all="TRUE"
+                old_target="$f"
             fi
         done
     fi
@@ -211,6 +226,14 @@ function pickDir () {
     echo Catalina and prior require:
     echo
     for f in "${ie_required[@]}"
+    do
+        echo - "$f"
+    done
+    echo
+    echo Legacy OS X Installers from https://support.apple.com/en-us/102662 require one
+    echo of the following:
+    echo
+    for f in "${old_required[@]}"
     do
         echo - "$f"
     done
@@ -303,15 +326,144 @@ function mountAndExploreDmg () {
         echo "--> Could not locate mount point - aborting..."
         exit 1
     fi
-    echo "- Locating Install [macOS version].app..."
-    # Gather the first hit from the find command
-    app_path="$(find "$mount_point" -name "Install*.app" -type d -maxdepth 1 2>/dev/null | head -n 1)"
+    if [ "$install_type" == "old" ]; then
+        echo "- Locating valid install pkg..."
+        pkg_path="$(find "$mount_point" -name "Install*.pkg" -type f -maxdepth 1 2>/dev/null | head -n 1)"
+        if [ -z "$pkg_path" ] || [ ! -e "$pkg_path" ]; then
+            echo "--> Could not locate valid install pkg - aborting..."
+            exit 1
+        fi
+        # Update the dir for copying/linking
+        dir="$mount_point"
+        # Set our target to the pkg
+        old_target="${pkg_path##*/}"
+        echo "--> Found $old_target"
+        # Ensure that it's valid
+        getAppNameFromPkg "$old_target"
+    else
+        echo "- Locating Install [macOS version].app..."
+        # Gather the first hit from the find command
+        app_path="$(find "$mount_point" -name "Install*.app" -type d -maxdepth 1 2>/dev/null | head -n 1)"
+        if [ -z "$app_path" ] || [ ! -d "$app_path" ]; then
+            echo "--> Could not locate Install [macOS version].app - aborting..."
+            exit 1
+        fi
+        app_name="${app_path##*/}"
+        echo "--> Found $app_name"
+    fi
+}
+
+function expandFullError () {
+    name="$(sw_vers -productName)"
+    prod="$(sw_vers -productVersion)"
+    build="$(sw_vers -buildVersion)"
+    echo
+    clear 2>/dev/null
+    echo "The pkgutil binary in this recovery env does not support the --expand-full"
+    echo "switch."
+    echo
+    echo "Currently running $name $prod ($build)."
+    echo
+    if [ "$install_type" != "old" ]; then
+        echo "There was no fallback BaseSystem.dmg or RecoveryImage.dmg located in the"
+        echo "selected directory, and no macOS installer app located locally."
+        echo
+        echo "Without a dmg or installer application, this script cannot continue."
+    else
+        echo "This script cannot continue."
+    fi
+    echo
+    echo "Aborting..."
+    exit 1
+}
+
+function pkgError () {
+    local pkgname="$1"
+    if [ -z "$pkgname" ]; then
+        pkgname="The selected pkg"
+    fi
+    echo 
+    clear 2>/dev/null
+    echo "$pkgname appears to be corrupt or is missing files."
+    echo "Perhaps the download or copy failed."
+    echo "Please redownload the file and try again."
+    echo
+    echo "Aborting..."
+    exit 1
+}
+
+function getAppNameFromPkg () {
+    local pkgname="$1"
+    local skipset="$2"
+    if [ -z "$pkgname" ]; then
+        pkgname="InstallAssistant.pkg"
+    fi
+    app_temp="$(pkgutil --payload-files "$dir/$pkgname" 2>/dev/null | grep -iE "(?i)^.*/Install[^/]+\.app$")"
+    if [ "$?" != "0" ] || [ -z "$app_temp" ]; then
+        # Got an error - or didn't get a .app
+        pkgError "$pkgname"
+    fi
+    if [ -z "$skipset" ] || [ "$skipset" == "FALSE" ]; then
+        # Only update the app_name/display_app if not skipping
+        app_name="${app_temp##*/}"
+        display_app="$app_name"
+    fi
+}
+
+function expandPkgAndExtractApp () {
+    local pkgname="$1"
+    if [ -z "$pkgname" ]; then
+        pkgname="InstallAssistant.pkg"
+    fi
+    # First we use the undocumented --expand-full flag for pkgutil
+    # to fully expand the install .pkg to the temp dir
+    # Caffeinate this process as it can take awhile
+    echo "- Expanding $pkgname - may take some time..."
+    # Ensure we have an app name to look for
+    getAppNameFromPkg "$pkgname"
+    caffeinate -d -i pkgutil --expand-full "$dir/$pkgname" "$temp/InstallPackage"
+    if [ "$?" != "0" ]; then
+        echo "Something went wrong - aborting..."
+        exit 1
+    fi
+    # Find the Install [macOS version].app
+    echo "- Locating $display_app..."
+    app_path="$(find "$temp/InstallPackage" -name "Install*.app" -type d 2>/dev/null | head -n 1)"
     if [ -z "$app_path" ] || [ ! -d "$app_path" ]; then
-        echo "--> Could not locate Install [macOS version].app - aborting..."
+        echo "--> Could not locate $display_app - aborting..."
         exit 1
     fi
     app_name="${app_path##*/}"
     echo "--> Found $app_name"
+    target_app="$temp"/"$app_name"
+    echo "- Moving files into place..."
+    mv "$app_path" "$target_app"
+    echo "- Cleaning up..."
+    rm -rf "$temp/InstallPackage"
+}
+
+function strEndsWith () {
+    local str="$1"
+    local end="$2"
+    if [ -z "$str" ] || [ -z "$end" ]; then
+        echo "0"
+        return
+    fi
+    # Get the length of the str and end
+    str_len="${#str}"
+    end_len="${#end}"
+    # Make sure our end isn't larger
+    if [ "$str_len" -ge "$end_len" ]; then
+        # Now we extract the end of str and compare
+        check="${str:$((str_len-end_len)):$str_len}"
+        if [ "$check" == "$end" ]; then
+            # We have a match!
+            echo "1"
+            return
+        fi
+    fi
+    # No match or str is too short, bail
+    echo "0"
 }
 
 # Gather some info to figure out how to proceed
@@ -319,7 +471,6 @@ function mountAndExploreDmg () {
 grep -a expand-full /usr/sbin/pkgutil >/dev/null 2>&1
 [ "$?" == "0" ] && can_expand_full=1 || can_expand_full=0
 findApps
-echo
 echo
 clear 2>/dev/null
 hasAll
@@ -339,18 +490,8 @@ mount_basesystem=0
 expand_installassistant=0
 
 if [ "$install_type" == "ia" ]; then
-    # Try to list the contents of the pkg and reroute to /dev/null to
-    # make sure it's valid
-    pkgutil --payload-files "$dir/InstallAssistant.pkg" >/dev/null 2>&1
-    if [ "$?" != "0" ]; then
-        echo 
-        clear 2>/dev/null
-        echo "InstallAssistant.pkg appears to be corrupt.  Perhaps the download or copy"
-        echo "failed.  Please redownload the file and try again."
-        echo
-        echo "Aborting..."
-        exit 1
-    fi
+    # Ensure the pkg is valid and resolves to an Install app
+    getAppNameFromPkg "InstallAssistant.pkg" "TRUE"
     # Prompt for any approaches we can use if > 1
     if [ "$can_expand_full" == "1" ]; then
         approaches+=("Fully expand InstallAssistant.pkg - slower, but no risk of app mismatch")
@@ -372,20 +513,7 @@ if [ "$install_type" == "ia" ]; then
         (( approach_count++ ))
     fi
     if [ "$approach_count" -le 0 ]; then
-        prod="$(sw_vers -productVersion)"
-        build="$(sw_vers -buildVersion)"
-        echo
-        clear 2>/dev/null
-        echo "The pkgutil binary in this recovery env does not support the --expand-full"
-        echo "switch - currently running macOS $prod ($build)."
-        echo
-        echo "There was no fallback BaseSystem.dmg or RecoveryImage.dmg located in the"
-        echo "selected directory, and no macOS installer app located locally."
-        echo
-        echo "Without a dmg or installer application, this script cannot continue."
-        echo
-        echo "Aborting..."
-        exit 1
+        expandFullError
     fi
     if [ "$approach_count" -gt 1 ]; then
         # Show a menu and let the user pick one
@@ -399,10 +527,7 @@ if [ "$install_type" == "ia" ]; then
     if [ "${using_approach:0:1}" == "F" ]; then
         expand_installassistant=1
         # Scrape the app name from the pkg itself
-        app_temp="$(pkgutil --payload-files "$dir/InstallAssistant.pkg" 2>/dev/null | grep -iE "(?i)^.*/Applications/Install[^/]+\.app$")"
-        if [ ! -z "$app_temp" ]; then
-            app_name="${app_temp##*/}"
-        fi
+        getAppNameFromPkg "InstallAssistant.pkg"
     elif [ "${using_approach:0:1}" == "E" ]; then
         mount_basesystem=1
     elif [ "${using_approach:0:1}" == "C" ]; then
@@ -416,8 +541,24 @@ if [ "$install_type" == "ia" ]; then
         # Resolve the name as well
         app_name="${app_path##*/}"
     fi
+elif [ "$install_type" == "old" ]; then
+    # We have to have --expand-full support for this
+    if [ "$can_expand_full" != "1" ]; then
+        expandFullError
+    fi
+    # Clear the base_sytem var as we may use it for our purposes
+    base_system=
+    # Check if we can scrape for the application name in the pkg
+    if [ "$(strEndsWith "$old_target" ".pkg")" == "1" ]; then
+        # Scrape the app name from the pkg itself
+        getAppNameFromPkg "$old_target"
+    else
+        # It's a dmg - save it as the base_system
+        base_system="$old_target"
+        mount_basesystem=1
+    fi
 else
-    # Only one approach to use here
+    # Only one remaining approach to use here
     mount_basesystem=1
 fi
 
@@ -430,9 +571,20 @@ echo
 clear 2>/dev/null
 echo Task Summary:
 echo
-if [ "$mount_basesystem" == "1" ]; then
-    echo "- Mount $base_system"
-    echo "- Copy $display_app to a temp folder on $selected_disk"
+if [ "$mount_basesystem" == "1" ] || [ "$install_type" == "old" ]; then
+    if [ "$mount_basesystem" == "1" ]; then
+        echo "- Mount $base_system"
+    fi
+    if [ "$install_type" == "old" ]; then
+        if [ "$(strEndsWith "$old_target" ".pkg")" == "1" ]; then
+            # The .pkg is the target - use its value
+            echo "- Expand $old_target to a temp folder on $selected_disk"
+        else
+            echo "- Expand the .pkg within to a temp folder on $selected_disk"
+        fi
+    else
+        echo "- Copy $display_app to a temp folder on $selected_disk"
+    fi
 elif [ "$expand_installassistant" == "1" ]; then
     echo "- Expand InstallAssistant.pkg to a temp folder on $selected_disk"
 elif [ ! -z "$app_name" ]; then
@@ -462,44 +614,28 @@ if [ -z "$temp" ] || [ ! -d "$temp" ]; then
     exit 1
 fi
 if [ "$expand_installassistant" == "1" ]; then
-    # First we use the undocumented --expand-full flag for pkgutil
-    # to fully expand the InstallAssistant.pkg to the temp dir
-    # Caffeinate this process as it can take awhile
-    echo "- Expanding InstallAssistant.pkg - may take some time..."
-    caffeinate -d -i pkgutil --expand-full "$dir/InstallAssistant.pkg" "$temp/InstallAssistant"
-    if [ "$?" != "0" ]; then
-        echo "Something went wrong - aborting..."
-        exit 1
-    fi
-    # Find both the Install [macOS version].app and the SharedSupport.dmg
-    echo "- Locating $display_app..."
-    app_path="$(find "$temp/InstallAssistant" -name "Install*.app" -type d 2>/dev/null | head -n 1)"
-    if [ -z "$app_path" ] || [ ! -d "$app_path" ]; then
-        echo "--> Could not locate $display_app - aborting..."
-        exit 1
-    fi
-    app_name="${app_path##*/}"
-    echo "--> Found $app_name"
-    target_app="$temp"/"$app_name"
-    echo "- Moving files into place..."
-    mv "$app_path" "$target_app"
-    echo "- Cleaning up..."
-    rm -rf "$temp/InstallAssistant"
+    expandPkgAndExtractApp "InstallAssistant.pkg"
 else
     # Ensure we mount the BaseSystem.dmg/RecoveryImage.dmg
     # as needed
     if [ "$mount_basesystem" == "1" ]; then
         mountAndExploreDmg
     fi
-    # Not expanding the InstallAssistant.pkg - let's copy our app over
-    # and then our files
-    if [ -z "$app_name" ]; then
-        echo "No $display_app was specified - aborting..."
-        exit 1
+    if [ "$install_type" == "old" ]; then
+        # We've mounted our dmg at this point - so our
+        # old target should be updated.
+        expandPkgAndExtractApp "$old_target"
+    else
+        # Not expanding the InstallAssistant.pkg - let's copy our app over
+        # and then our files
+        if [ -z "$app_name" ]; then
+            echo "No $display_app was specified - aborting..."
+            exit 1
+        fi
+        target_app="$temp"/"$app_name"
+        echo "- Copying $app_name to $temp..."
+        copyTo "$app_path" "$target_app"
     fi
-    target_app="$temp"/"$app_name"
-    echo "- Copying $app_name to $temp..."
-    copyTo "$app_path" "$target_app"
 fi
 echo - Creating "$app_name"/Contents/SharedSupport...
 mkdir -p "$target_app/Contents/SharedSupport"
@@ -515,6 +651,13 @@ if [ "$install_type" == "ia" ]; then
             ln -s "$dir/$f" "$target_app/Contents/SharedSupport/$f"
         fi
     done
+elif [ "$install_type" == "old" ]; then
+    # We need to link the target package to shared support.
+    # There's only one - so skip list iteration
+    # Even if old_target was originally a dmg, it's been updated
+    # per mountAndExploreDmg - same with dir
+    echo "--> $old_target -- InstallESD.dmg"
+    ln -s "$dir/$old_target" "$target_app/Contents/SharedSupport/InstallESD.dmg"
 else
     for f in "${ie_required[@]}"
     do
