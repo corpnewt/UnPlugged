@@ -6,7 +6,7 @@ Bash script to help build and run an offline installer in recovery.
 ## Prerequisites
 
 * [UnPlugged](https://github.com/corpnewt/UnPlugged)
-* [gibMacOS](https://github.com/corpnewt/gibMacOS)
+* [gibMacOS](https://github.com/corpnewt/gibMacOS) - or a .dmg/.pkg from the "older versions" linked [here](https://support.apple.com/en-us/102662)
 * [macrecovery.py](https://github.com/acidanthera/OpenCorePkg/tree/master/Utilities/macrecovery) (or [gibMacRecovery](https://github.com/corpnewt/gibMacRecovery))
 * A 16+ GB USB drive
 * Your EFI set up by following the [Dortania guide](https://dortania.github.io/OpenCore-Install-Guide/)
