@@ -702,7 +702,7 @@ else
     done < "$dir/InstallInfo.plist"
 fi
 # Clean up after ourselves if needed
-if [ ! -z "$mount_point" ]; then
+if [ ! -z "$mount_point" ] && [ "$install_type" != "old" ]; then
     echo "- Unmounting $base_system..."
     hdiutil detach "$mount_point" >/dev/null 2>&1
 fi
