@@ -387,10 +387,19 @@ function pkgWarn () {
     if [ -z "$pkgname" ]; then
         pkgname="the selected pkg"
     fi
+    name="$(sw_vers -productName)"
+    prod="$(sw_vers -productVersion)"
+    build="$(sw_vers -buildVersion)"
     echo 
     clear 2>/dev/null
-    echo "Could not extract required info from $pkgname."
-    echo "That could indicate that it may be corrupt, or is missing files."
+    echo "!! Could not extract required info from $pkgname !!"
+    echo "!! That could indicate that it may be corrupt, or is missing files !!"
+    echo
+    echo "Some recovery environments have odd issues (Ventura, for instance) which limit"
+    echo "the information pkgutil can obtain.  In those cases, as long as the .pkg copy"
+    echo "process completed correctly, you should be fine continuing."
+    echo
+    echo "Currently running $name $prod ($build)."
     echo
     while true; do
         read -r -p "Do you wish to continue? [y/n]: " yn
@@ -479,7 +488,7 @@ function strEndsWith () {
 
 # Gather some info to figure out how to proceed
 # Let's look for "expand-full" in pkgutil itself
-grep -a expand-full /usr/sbin/pkgutil >/dev/null 2>&1
+cat /usr/sbin/pkgutil | grep -i "expand-full" >/dev/null 2>&1
 [ "$?" == "0" ] && can_expand_full=1 || can_expand_full=0
 findApps
 echo
