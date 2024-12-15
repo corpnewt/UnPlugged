@@ -22,6 +22,7 @@ old_required=("InstallOS.dmg" "InstallOS.pkg" "InstallMacOSX.dmg" "InstallMacOSX
 old_target=
 install_type="ia"
 has_all="TRUE"
+pkg_warned=
 
 function pickDisk () { 
     selected_disk=
@@ -377,19 +378,30 @@ function expandFullError () {
     exit 1
 }
 
-function pkgError () {
+function pkgWarn () {
+    if [ ! -z "$pkg_warned" ]; then
+        # Already been warned - don't warn again
+        return
+    fi
     local pkgname="$1"
     if [ -z "$pkgname" ]; then
-        pkgname="The selected pkg"
+        pkgname="the selected pkg"
     fi
     echo 
     clear 2>/dev/null
-    echo "$pkgname appears to be corrupt or is missing files."
-    echo "Perhaps the download or copy failed."
-    echo "Please redownload the file and try again."
+    echo "Could not extract required info from $pkgname."
+    echo "That could indicate that it may be corrupt, or is missing files."
     echo
-    echo "Aborting..."
-    exit 1
+    while true; do
+        read -r -p "Do you wish to continue? [y/n]: " yn
+        case $yn in
+            [Yy]* ) break;;
+            [Nn]* ) exit;;
+            * ) echo "Please answer yes or no.";;
+        esac
+    done
+    # If we got here - we're continuing.  Prevent multiple prompts
+    pkg_warned="TRUE"
 }
 
 function getAppNameFromPkg () {
@@ -401,9 +413,8 @@ function getAppNameFromPkg () {
     app_temp="$(pkgutil --payload-files "$dir/$pkgname" 2>/dev/null | grep -iE "(?i)^.*/Install[^/]+\.app$")"
     if [ "$?" != "0" ] || [ -z "$app_temp" ]; then
         # Got an error - or didn't get a .app
-        pkgError "$pkgname"
-    fi
-    if [ -z "$skipset" ] || [ "$skipset" == "FALSE" ]; then
+        pkgWarn "$pkgname"
+    elif [ -z "$skipset" ] || [ "$skipset" == "FALSE" ]; then
         # Only update the app_name/display_app if not skipping
         app_name="${app_temp##*/}"
         display_app="$app_name"
@@ -443,8 +454,8 @@ function expandPkgAndExtractApp () {
 }
 
 function strEndsWith () {
-    local str="$1"
-    local end="$2"
+    local str="$(echo "$1" | tr '[:upper:]' '[:lower:]')"
+    local end="$(echo "$2" | tr '[:upper:]' '[:lower:]')"
     if [ -z "$str" ] || [ -z "$end" ]; then
         echo "0"
         return
