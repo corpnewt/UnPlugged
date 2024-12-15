@@ -395,7 +395,7 @@ function pkgWarn () {
     echo "!! Could not extract required info from $pkgname !!"
     echo "!! That could indicate that it may be corrupt, or is missing files !!"
     echo
-    echo "Some recovery environments have odd issues (Ventura, for instance) which limit"
+    echo "Some recovery environments have odd issues (macOS 13, for instance) which limit"
     echo "the information pkgutil can obtain.  In those cases, as long as the .pkg copy"
     echo "process completed correctly, you should be fine continuing."
     echo
@@ -405,7 +405,7 @@ function pkgWarn () {
         read -r -p "Do you wish to continue? [y/n]: " yn
         case $yn in
             [Yy]* ) break;;
-            [Nn]* ) exit;;
+            [NnQq]* ) exit;;
             * ) echo "Please answer yes or no.";;
         esac
     done
@@ -617,7 +617,7 @@ while true; do
     read -r -p "Do you wish to continue? [y/n]: " yn
     case $yn in
         [Yy]* ) break;;
-        [Nn]* ) exit;;
+        [NnQq]* ) exit;;
         * ) echo "Please answer yes or no.";;
     esac
 done
