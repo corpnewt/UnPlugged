@@ -23,6 +23,8 @@ old_target=
 install_type="ia"
 has_all="TRUE"
 pkg_warned=
+# Check for caffeinate binary - not present in some older OS versions
+[ -e "/usr/bin/caffeinate" ] && got_coffee=1 || got_coffee=0
 
 function pickDisk () { 
     selected_disk=
@@ -283,10 +285,18 @@ function copyTo () {
     fi
     if [ -d "$from" ]; then
         # Copying a directory
-        caffeinate -d -i cp -R "$from" "$to"
+        if [ "$got_coffee" == "1" ]; then
+            caffeinate -d -i cp -R "$from" "$to"
+        else
+            cp -R "$from" "$to"
+        fi
     elif [ -e "$from" ]; then
         # Copying a file
-        caffeinate -d -i cp "$from" "$to"
+        if [ "$got_coffee" == "1" ]; then
+            caffeinate -d -i cp "$from" "$to"
+        else
+            cp "$from" "$to"
+        fi
     else
         # Doesn't exist
         exit 1
@@ -441,7 +451,11 @@ function expandPkgAndExtractApp () {
     echo "- Expanding $pkgname - may take some time..."
     # Ensure we have an app name to look for
     getAppNameFromPkg "$pkgname"
-    caffeinate -d -i pkgutil --expand-full "$dir/$pkgname" "$temp/InstallPackage"
+    if [ "$got_coffee" == "1" ]; then
+        caffeinate -d -i pkgutil --expand-full "$dir/$pkgname" "$temp/InstallPackage"
+    else
+        pkgutil --expand-full "$dir/$pkgname" "$temp/InstallPackage"
+    fi
     if [ "$?" != "0" ]; then
         echo "Something went wrong - aborting..."
         exit 1
@@ -611,7 +625,11 @@ elif [ ! -z "$app_name" ]; then
     echo "- Copy $app_name to a temp folder on $selected_disk"
 fi
 echo "- Set up SharedSupport in $display_app/Contents/"
-echo "- Caffeinate and launch $display_app"
+if [ "$got_coffee" == "1" ]; then
+    echo "- Caffeinate and launch $display_app"
+else
+    echo "- Launch $display_app"
+fi
 echo
 while true; do
     read -r -p "Do you wish to continue? [y/n]: " yn
@@ -732,8 +750,16 @@ if [ -z "$app_name" ] || [ -z "$target_app" ] || [ ! -d "$target_app" ]; then
     echo Something went wrong - aborting...
     exit 1
 fi
-echo - Caffeinating and launching "$app_name"...
-echo
-echo ! Note:  It may take some time to start - be patient !
-echo
-caffeinate -d -i "$target_app"/Contents/MacOS/Install* 2>/dev/null &
+if [ "$got_coffee" == "1" ]; then
+    echo - Caffeinating and launching "$app_name"...
+    echo
+    echo ! Note:  It may take some time to start - be patient !
+    echo
+    caffeinate -d -i "$target_app"/Contents/MacOS/Install* 2>/dev/null &
+else
+    echo - Launching "$app_name"...
+    echo
+    echo ! Note:  It may take some time to start - be patient !
+    echo
+    "$target_app"/Contents/MacOS/Install* 2>/dev/null &
+fi
