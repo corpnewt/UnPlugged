@@ -690,12 +690,12 @@ if [ "$install_type" == "ia" ]; then
         fi
     done
 elif [ "$install_type" == "old" ]; then
-    # We need to link the target package to shared support.
+    # We need to copy the target package to shared support.
     # There's only one - so skip list iteration
     # Even if old_target was originally a dmg, it's been updated
     # per mountAndExploreDmg - same with dir
     echo "--> $old_target -- InstallESD.dmg"
-    ln -s "$dir/$old_target" "$target_app/Contents/SharedSupport/InstallESD.dmg"
+    copyTo "$dir/$old_target" "$target_app/Contents/SharedSupport/InstallESD.dmg"
 else
     for f in "${ie_required[@]}"
     do
