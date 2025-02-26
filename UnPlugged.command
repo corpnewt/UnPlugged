@@ -165,7 +165,7 @@ function pickApproach () {
             using_approach="${approaches[ (( $app-1 )) ]}"
         fi
     fi
-    # Strip trailing slashes
+    # Make sure we got an approach
     if [ -z "$using_approach" ]; then
         pickApproach
         return
