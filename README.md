@@ -10,6 +10,9 @@ Bash script to help build and run an offline installer in recovery.
 * [macrecovery.py](https://github.com/acidanthera/OpenCorePkg/tree/master/Utilities/macrecovery) (or [gibMacRecovery](https://github.com/corpnewt/gibMacRecovery))
 * A 16+ GB USB drive
 * Your EFI set up by following the [Dortania guide](https://dortania.github.io/OpenCore-Install-Guide/)
+* If you're installing Sonoma or later, make sure to read [this section](#notes-for-sonoma-and-later)!
+
+***
 
 ## Pre-Install Steps
 
@@ -26,13 +29,32 @@ Bash script to help build and run an offline installer in recovery.
     ◦ An ExFAT partition of the remaining space (needs to be enough to accommodate the files downloaded from `gibMacOS`)
 
 3. Copy your EFI folder and the com.apple.recovery.boot folder over to the FAT32 partition
-4. Copy the folder containing the files downloaded from gibMacOS to the ExFAT partition
+4. Copy the files downloaded from gibMacOS to the ExFAT partition
 
-    ◦ You'll be `cd`ing to this folder later - so it may make sense to label it something easy to type like `macOS`
+    ◦ You'll be `cd`ing to this partition later - so it may make sense to label it something easy to type like `UnPlugged`
 
-5. Copy `UnPlugged.command` to that same folder on the ExFAT partition
-6. Eject the USB drive - this ensures any pending cached writes are applied and can help prevent corrupt or incomplete file copies
-7. Boot into the install environment
+5. Copy `UnPlugged.command` to the ExFAT partition as well
+6. **_Eject the USB drive_** - this ensures any pending cached writes are applied and can help prevent corrupt or incomplete file copies
+7. Boot into the recovery environment
+
+<details>
+<summary>Example USB Structure</summary>
+
+After formatting and copying things to their respective locations, your USB should look something like this:
+```
+USB Drive
+|-> 750+MB FAT32 Partition (named OPENCORE or similar)
+|   |-> EFI
+|   \-> com.apple.recovery.boot
+|       |-> BaseSystem.dmg
+|       \-> BaseSystem.chunklist
+\-> 15+GB ExFAT Partition (named UnPlugged or similar)
+    |-> Files from gibMacOS (InstallAssistant.pkg, InstallESDDmg.pkg, etc)
+    \-> UnPlugged.command
+```
+</details>
+
+***
 
 ## Recovery Environment Steps
 
@@ -44,17 +66,21 @@ Bash script to help build and run an offline installer in recovery.
 
      ◦ High Sierra and newer should be APFS with a GUID Parititon Map
 
-4. Quit Disk Utility
-5. Open Terminal
-6. Type `cd /Volumes/[your ExFAT volume name]/macOS`
+5. Quit Disk Utility
+6. Open Terminal
+7. Type `cd /Volumes/[your ExFAT volume name]`
 
     ◦ You can get a list of all volumes with `ls /Volumes`
 
-    ◦ Make sure to replace `macOS` with the name of the folder containing the gibMacOS files and `UnPlugged.command`
+    ◦ Make sure to replace `[your ExFAT volume name]` with the name of the volume containing gibMacOS files and `UnPlugged.command`
 
-7. Type `./UnPlugged.command` to launch the script
+    ◦ e.g. If you named the volume `UnPlugged`, you would do `cd /Volumes/UnPlugged`
+
+8. Type `./UnPlugged.command` to launch the script
 
     ◦ If that does not work - you can type `bash UnPlugged.command`
+
+***
 
 ## UnPlugged.command Steps
 
@@ -73,6 +99,8 @@ Bash script to help build and run an offline installer in recovery.
 
     ◦ Make sure to leave the Terminal open - do not quit it, as doing so will also quit the installer.
 
+***
+
 ## Notes for Sonoma and Later
 
 It seems the Sonoma+ BaseSystem.dmg recovery environment does not allow mounting FAT32 or ExFAT volumes at all.  To work around this using UnPlugged requires a couple extra steps.
@@ -81,7 +109,7 @@ You'll need to use an earlier BaseSystem.dmg|.chunklist downloaded via `macrecov
 
 ```
 USB Drive
-|-> 800MB FAT32 Partition (named OPENCORE or similar)
+|-> 750+MB FAT32 Partition (named OPENCORE or similar)
 |   |-> EFI
 |   \-> com.apple.recovery.boot
 |       |-> BaseSystem.dmg (for Monterey)
@@ -95,3 +123,25 @@ USB Drive
 When prompted to select where you would like to get the `Install [macos Version].app` from, selecting `Extract the Install [macOS version].app from BaseSystem.dmg` will leverage the provided BaseSystem.dmg.
 
 The rest of the process should be the same as with prior OS versions.
+
+
+<details>
+<summary>Note: There *are* ways to manually mount the ExFAT volume in Sonoma+ recovery</summary>
+
+You can use the following approach to locate your ExFAT volume's identifier and manually mount it if you're familiar with the command line:
+
+```sh
+# Show a list of all the physically connected disks and their
+# volumes:
+diskutil list physical
+# Create a folder where you'd like to mount the ExFAT volume,
+# the directory name must be unique, and not already exist:
+mkdir /Volumes/UnPlugged
+# Mount the ExFAT volume at that location - replace "diskXsY" with
+# your ExFAT volume's identifier:
+/sbin/mount_exfat /dev/diskXsY /Volumes/UnPlugged
+```
+
+You should also be able to mount the FAT32 volume by performing the above steps using `/sbin/mount_msdos` instead of `/sbin/mount_exfat`.
+
+</details>
