@@ -49,7 +49,7 @@ function pickDisk () {
     fi
     driveIndex=$(( driveCount-1 ))
     echo
-    read -r -p "Select the target install volume: " drive
+    read -r -p "Select the volume where you are installing macOS: " drive
     if [ -z "$drive" ]; then
         pickDisk
         return
