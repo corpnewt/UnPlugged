@@ -22,7 +22,7 @@ Bash script to help build and run an offline installer in recovery.
 
     ◦ They just need to be the same **major** version (i.e. Ventura with Ventura), it **_does not_** need to be the exact same point release (i.e. 13.x.y and 13.x.y)
 
-    ◦ Beta and Apple Silicon specific builds from gibMacOS may not work correctly - and may result in an error stating "This version of macOS is not authorized for installation."
+    ◦ Beta and Apple Silicon specific builds from `gibMacOS` may not work correctly - and may result in an error stating "This version of macOS is not authorized for installation."
 
 3. Format your USB with 2 partitions:
    
