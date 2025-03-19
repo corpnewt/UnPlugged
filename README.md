@@ -22,20 +22,22 @@ Bash script to help build and run an offline installer in recovery.
 
     ◦ They just need to be the same **major** version (i.e. Ventura with Ventura), it **_does not_** need to be the exact same point release (i.e. 13.x.y and 13.x.y)
 
-2. Format your USB with 2 partitions:
+    ◦ Beta and Apple Silicon specific builds from gibMacOS may not work correctly - and may result in an error stating "This version of macOS is not authorized for installation."
+
+3. Format your USB with 2 partitions:
    
     ◦ A FAT32 partition of ~750MB to 1GB (enough to accommodate the EFI and com.apple.recovery.boot folders)
 
     ◦ An ExFAT partition of the remaining space (needs to be enough to accommodate the files downloaded from `gibMacOS`)
 
-3. Copy your EFI folder and the com.apple.recovery.boot folder over to the FAT32 partition
-4. Copy the files downloaded from gibMacOS to the ExFAT partition
+4. Copy your EFI folder and the com.apple.recovery.boot folder over to the FAT32 partition
+5. Copy the files downloaded from gibMacOS to the ExFAT partition
 
     ◦ You'll be `cd`ing to this partition later - so it may make sense to label it something easy to type like `UnPlugged`
 
-5. Copy `UnPlugged.command` to the ExFAT partition as well
-6. **_Eject the USB drive_** - this ensures any pending cached writes are applied and can help prevent corrupt or incomplete file copies
-7. Boot into the recovery environment
+6. Copy `UnPlugged.command` to the ExFAT partition as well
+7. **_Eject the USB drive_** - this ensures any pending cached writes are applied and can help prevent corrupt or incomplete file copies
+8. Boot into the recovery environment
 
 <details>
 <summary>Example USB Structure</summary>
