@@ -30,14 +30,16 @@ Bash script to help build and run an offline installer in recovery.
 
     ◦ An ExFAT partition of the remaining space (needs to be enough to accommodate the files downloaded from `gibMacOS`)
 
-4. Copy your EFI folder and the com.apple.recovery.boot folder over to the FAT32 partition
-5. Copy the files downloaded from gibMacOS to the ExFAT partition
+    ◦ **NOTE:** macOS seems to have issues mounting ExFAT partitions whose allocation unit size is greater than 1024 KB.  When formatting the ExFAT partition, ensure that you use an allocation unit size value of 1024 KB or smaller.
+
+5. Copy your EFI folder and the com.apple.recovery.boot folder over to the FAT32 partition
+6. Copy the files downloaded from gibMacOS to the ExFAT partition
 
     ◦ You'll be `cd`ing to this partition later - so it may make sense to label it something easy to type like `UnPlugged`
 
-6. Copy `UnPlugged.command` to the ExFAT partition as well
-7. **_Eject the USB drive_** - this ensures any pending cached writes are applied and can help prevent corrupt or incomplete file copies
-8. Boot into the recovery environment
+7. Copy `UnPlugged.command` to the ExFAT partition as well
+8. **_Eject the USB drive_** - this ensures any pending cached writes are applied and can help prevent corrupt or incomplete file copies
+9. Boot into the recovery environment
 
 <details>
 <summary>Example USB Structure</summary>
