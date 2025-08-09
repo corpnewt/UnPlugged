@@ -65,8 +65,56 @@ function pickDisk () {
     fi
     if [ -z "$selected_disk" ]; then
         pickDisk
+    else
+        # We got a disk - look for any leftovers on it
+        checkLeftovers
+    fi
+}
+
+function checkLeftovers () {
+    # Check the selected disk for any leftover attempts - and prompt
+    # the user to remove them before continuing
+    if [ -z "$selected_disk" ]; then
+        # No disk? Just bail
         return
     fi
+    local leftovers="$( find "$selected_disk" -name "macOS-Installer-*" -type d -maxdepth 1 2>/dev/null )"
+    if [ -z "$leftovers" ]; then
+        # No leftovers found - just bail
+        return
+    fi
+    local leftover_list=
+    local leftover_count=0
+    local leftover_index=0
+    unset leftover_list
+    IFS=$'\n' read -rd '' -a leftover_list <<<"$leftovers"
+    echo
+    clear 2>/dev/null
+    echo "Listing prior attempts on $selected_disk..."
+    echo
+    unset l
+    for l in "${leftover_list[@]}"
+    do
+        (( leftover_count++ ))
+        # List just the name, not the full path
+        echo " - ${l##*/}"
+    done
+    if [ "$leftover_count" -le "0" ]; then
+        # No leftovers found - just bail
+        return
+    fi
+    leftover_index=$(( leftover_count-1 ))
+    echo
+    while true; do
+        read -r -p "Do you wish to remove all prior attempts before continuing? [y/n]: " yn
+        case $yn in
+            #  >/dev/null 2>&1
+            [Yy]* ) find "$selected_disk" -name "macOS-Installer-*" -type d -maxdepth 1 -exec rm -r {} +; break;;
+            [Nn]* ) break;;
+            [Qq]* ) exit;;
+            * ) echo "Please answer yes or no.";;
+        esac
+    done
 }
 
 function findApps () {
