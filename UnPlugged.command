@@ -23,6 +23,7 @@ old_target=
 install_type="ia"
 has_all="TRUE"
 pkg_warned=
+copy_or_link="Symlink"
 # Check for caffeinate binary - not present in some older OS versions
 [ -e "/usr/bin/caffeinate" ] && got_coffee=1 || got_coffee=0
 
@@ -320,6 +321,73 @@ function pickDir () {
     if [ "$has_all" != "TRUE" ]; then
         pickDir
         return
+    fi
+}
+
+function askCopyOrLink() {
+    # Prompt the user to find out if they would like to
+    # copy files to the destination, or symlink them.
+    # Symlinking seems to work well enough on newer OS
+    # versions, and takes up less space, but copying is
+    # more consistent overall, albeit slower.
+    copy_or_link=
+    echo
+    clear 2>/dev/null
+    echo "Listing available copy approaches..."
+    echo
+    echo "1. Symlink (ln)"
+    echo "   - Faster"
+    echo "   - Uses less space"
+    echo "   - Not as reliable - may not work with all, especially older, OS versions"
+    echo "2. Copy (cp)"
+    echo "   - Slower"
+    echo "   - Uses more space"
+    echo "   - More reliable - try this if symlinking fails"
+    echo
+    read -r -p "Select the copy approach you'd like to use: " cop
+    if [[ "$cop" == "" ]]; then
+        askCopyOrLink
+        return
+    fi
+    if [ "$cop" == "q" ]; then
+        exit 0
+    fi
+    # Make sure we got a valid selection
+    if [ "$cop" == "1" ]; then
+        copy_or_link="Symlink"
+    elif [ "$cop" == "2" ]; then
+        copy_or_link="Copy"
+    fi
+    # Make sure we got an approach
+    if [ -z "$copy_or_link" ]; then
+        askCopyOrLink
+        return
+    fi
+}
+
+function copyOrLinkTo() {
+    # Determine whether we're using symlinks, or copying
+    if [ "$copy_or_link" == "Symlink" ]; then
+        linkTo "$1" "$2"
+    else
+        copyTo "$1" "$2"
+    fi
+}
+
+function linkTo() {
+    local from="$1" to="$2"
+    if [ -z "$from" ] || [ -z "$to" ]; then
+        # Missing one or more args
+        exit 1
+    fi
+    if [ ! -e "$from" ]; then
+        # Doesn't exist
+        exit 1
+    fi
+    # Actually symlink
+    ln -s "$1" "$2"
+    if [ "$?" != "0" ]; then
+        exit $?
     fi
 }
 
@@ -645,6 +713,7 @@ else
 fi
 
 pickDisk
+askCopyOrLink
 
 # Resolve our display name before listing the summary
 [ -z "$app_name" ] && display_app="Install [macOS version].app" || display_app="$app_name"
@@ -672,7 +741,7 @@ elif [ "$expand_installassistant" == "1" ]; then
 elif [ ! -z "$app_name" ]; then
     echo "- Copy $app_name to a temp folder on $selected_disk"
 fi
-echo "- Set up SharedSupport in $display_app/Contents/"
+echo "- $copy_or_link files to $display_app/Contents/SharedSupport"
 if [ "$got_coffee" == "1" ]; then
     echo "- Caffeinate and launch $display_app"
 else
@@ -725,16 +794,16 @@ else
 fi
 echo - Creating "$app_name"/Contents/SharedSupport...
 mkdir -p "$target_app/Contents/SharedSupport"
-echo - Linking and copying files to SharedSupport...
+echo - "$copy_or_link"ing files to SharedSupport...
 if [ "$install_type" == "ia" ]; then
     for f in "${ia_required[@]}"
     do
         if [ "$f" == "InstallAssistant.pkg" ]; then
             echo "--> $f -- SharedSupport.dmg"
-            ln -s "$dir/$f" "$target_app/Contents/SharedSupport/SharedSupport.dmg"
+            copyOrLinkTo "$dir/$f" "$target_app/Contents/SharedSupport/SharedSupport.dmg"
         else
             echo "--> $f"
-            ln -s "$dir/$f" "$target_app/Contents/SharedSupport/$f"
+            copyOrLinkTo "$dir/$f" "$target_app/Contents/SharedSupport/$f"
         fi
     done
 elif [ "$install_type" == "old" ]; then
@@ -743,7 +812,7 @@ elif [ "$install_type" == "old" ]; then
     # Even if old_target was originally a dmg, it's been updated
     # per mountAndExploreDmg - same with dir
     echo "--> $old_target -- InstallESD.dmg"
-    copyTo "$dir/$old_target" "$target_app/Contents/SharedSupport/InstallESD.dmg"
+    copyOrLinkTo "$dir/$old_target" "$target_app/Contents/SharedSupport/InstallESD.dmg"
 else
     for f in "${ie_required[@]}"
     do
@@ -752,10 +821,10 @@ else
             continue
         elif [ "$f" == "InstallESDDmg.pkg" ]; then
             echo "--> $f -- InstallESD.dmg"
-            ln -s "$dir/$f" "$target_app/Contents/SharedSupport/InstallESD.dmg"
+            copyOrLinkTo "$dir/$f" "$target_app/Contents/SharedSupport/InstallESD.dmg"
         else
             echo "--> $f"
-            ln -s "$dir/$f" "$target_app/Contents/SharedSupport/$f"
+            copyOrLinkTo "$dir/$f" "$target_app/Contents/SharedSupport/$f"
         fi
     done
     # Now we need to read the InstallInfo.plist and echo the lines to
