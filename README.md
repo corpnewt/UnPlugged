@@ -109,7 +109,7 @@ USB Drive
 
 ## Notes for Sonoma and Later
 
-It seems the Sonoma+ BaseSystem.dmg recovery environment does not allow mounting FAT32 or ExFAT volumes at all.  To work around this using UnPlugged requires a couple extra steps.
+It seems the Sonoma+ BaseSystem.dmg recovery environment does not allow mounting FAT32 or ExFAT volumes by default.  To work around this using UnPlugged requires a couple extra steps.
 
 You'll need to use an earlier BaseSystem.dmg|.chunklist downloaded via `macrecovery.py` in your com.apple.recovery.boot folder (Monterey works fine with FAT32 and ExFAT volumes).  You'll also need to download Sonoma's BaseSystem.dmg via `macrecovery.py` and place that alongside the files downloaded with `gibMacOS` if you don't intend to expand the InstallAsisstant.pkg directly.  The end result should look something like the following:
 
